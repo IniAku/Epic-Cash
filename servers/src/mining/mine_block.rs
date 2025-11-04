@@ -102,12 +102,11 @@ fn build_block(
 		.get_header_hash_by_height(rx_current_seed_height(head.height + 1))?;
 
 	// prepare the block header timestamp
-	//let mut now_sec = Utc::now().timestamp();
-	//let head_sec = head.timestamp.timestamp();
-	//if now_sec <= head_sec {
-	//	now_sec = head_sec + 1;
-	//}
-	//-> was never used
+	let mut now_sec = Utc::now().timestamp();
+	let head_sec = head.timestamp.timestamp();
+	if now_sec <= head_sec {
+		now_sec = head_sec + 1;
+	}
 
 	// Determine the difficulty our block should be at.
 	// Note: do not keep the difficulty_iter in scope (it has an active batch).
@@ -175,7 +174,8 @@ fn build_block(
 	b.header.pow.seed = seed_u8;
 	b.header.pow.nonce = rng().random();
 	b.header.pow.secondary_scaling = difficulty.secondary_scaling;
-	b.header.timestamp = Utc.timestamp_opt(0, 0).single().expect("Invalid timestamp");
+	b.header.timestamp = Utc.timestamp_opt(now_sec, 0).single().expect("Invalid timestamp");
+	
 	b.header.policy = get_emitted_policy(b.header.height);
 
 	let bottle_cursor = chain.bottles_iter(get_emitted_policy(b.header.height))?;
