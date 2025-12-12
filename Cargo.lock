@@ -3218,7 +3218,6 @@ dependencies = [
 [[package]]
 name = "progpow"
 version = "0.1.0"
-source = "git+https://github.com/EpicCash/progpow-rust?tag=v0.2.0#7a10ab826479af4d0e61de4d6cccd420e0b8ce8e"
 dependencies = [
  "bindgen 0.71.1",
  "byteorder",
@@ -3235,7 +3234,6 @@ dependencies = [
 [[package]]
 name = "progpow_cpu"
 version = "0.1.0"
-source = "git+https://github.com/EpicCash/progpow-rust?tag=v0.2.0#7a10ab826479af4d0e61de4d6cccd420e0b8ce8e"
 dependencies = [
  "crunchy",
  "either",
@@ -3457,7 +3455,6 @@ dependencies = [
 [[package]]
 name = "randomx"
 version = "0.2.0"
-source = "git+https://github.com/EpicCash/randomx-rust.git?tag=v0.2.0#d8cdeff53c333707da401a3e06d29b467681cfeb"
 dependencies = [
  "bindgen 0.71.1",
  "byteorder",

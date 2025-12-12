@@ -331,8 +331,11 @@ impl ApiServer {
 		if self.shutdown_sender.is_some() {
 			// TODO re-enable stop after investigation
 			if let Some(tx) = self.shutdown_sender.take() {
-				tx.send(()).expect("Failed to stop API server");
-				info!("API server has been stopped");
+				if let Err(e) = tx.send(()) {
+					error!("Failed to stop API server: {:?}", e);
+				} else {
+					info!("API server has been stopped");
+				}
 			}
 
 			true

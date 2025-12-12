@@ -57,9 +57,8 @@ epic_servers = { path = "./servers", version = "4.0.0" }
 epic_util = { path = "./util", version = "4.0.0" }
 epic_chain = { path = "./chain", version = "4.0.0" }
 
-cursive = { version = "0.21.1", default-features = false, features = [
-    "pancurses-backend",
-] }
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+cursive = { version = "0.21.1", default-features = false, features = ["pancurses-backend"] }
 
 [target.'cfg(windows)'.dependencies.pancurses]
 version = "0.16.1"
@@ -84,6 +83,10 @@ sha2 = "0.10"
 [dev-dependencies]
 epic_store = { path = "./store", version = "4.0.0" }
 cucumber_rust = { version = "^0.5.1", default-features = false }
+
+[patch.crates-io]
+# Prefer local randomx-rust during development so CMake/build.rs patches are used
+randomx = { path = "../randomx-rust" }
 
 
 

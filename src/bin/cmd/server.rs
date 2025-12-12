@@ -16,6 +16,7 @@ use crate::config::GlobalConfig;
 use crate::core::global;
 use crate::p2p::{PeerAddr, Seeding};
 use crate::servers;
+#[cfg(not(target_os = "ios"))]
 use crate::tui::ui;
 use clap::ArgMatches;
 use ctrlc;
@@ -56,33 +57,65 @@ fn start_server_tui(
         tokio::sync::oneshot::Receiver<()>,
     ),
 ) -> Result<(), String> {
-    if config.run_tui.unwrap_or(false) {
-        info!("Starting EPIC in UI mode...");
-        servers::Server::start(
-            config,
-            logs_rx,
-            |serv: servers::Server, logs_rx: Option<mpsc::Receiver<LogEntry>>| {
-                let mut controller = match logs_rx {
-                    Some(rx) => match ui::Controller::new(rx) {
-                        Ok(ctrl) => ctrl,
-                        Err(e) => {
-                            error!("Error loading UI controller: {}", e);
+    #[cfg(not(target_os = "ios"))]
+    {
+        if config.run_tui.unwrap_or(false) {
+            info!("Starting EPIC in UI mode...");
+            servers::Server::start(
+                config,
+                logs_rx,
+                |serv: servers::Server, logs_rx: Option<mpsc::Receiver<LogEntry>>| {
+                    let mut controller = match logs_rx {
+                        Some(rx) => match ui::Controller::new(rx) {
+                            Ok(ctrl) => ctrl,
+                            Err(e) => {
+                                error!("Error loading UI controller: {}", e);
+                                return;
+                            }
+                        },
+                        None => {
+                            error!("No logs_rx provided for UI controller");
                             return;
                         }
-                    },
-                    None => {
-                        error!("No logs_rx provided for UI controller");
+                    };
+                    controller.run(serv);
+                },
+                None,
+                api_chan,
+            )
+            .map_err(|e| format!("Failed to start server in UI mode: {:?}", e))?;
+        } else {
+            info!("Starting EPIC w/o UI...");
+            let msg = "Failed to start server without UI";
+            servers::Server::start(
+                config,
+                logs_rx,
+                |serv: servers::Server, _: Option<mpsc::Receiver<LogEntry>>| {
+                    let running = Arc::new(AtomicBool::new(true));
+                    let r = running.clone();
+                    if let Err(e) = ctrlc::set_handler(move || {
+                        r.store(false, Ordering::SeqCst);
+                    }) {
+                        error!("Error setting handler for SIGINT/SIGTERM: {}", e);
                         return;
                     }
-                };
-                controller.run(serv);
-            },
-            None,
-            api_chan,
-        )
-        .map_err(|e| format!("Failed to start server in UI mode: {:?}", e))?;
-    } else {
-        info!("Starting EPIC w/o UI...");
+                    while running.load(Ordering::SeqCst) {
+                        thread::sleep(Duration::from_secs(1));
+                    }
+                    warn!("Received SIGINT (Ctrl+C) or SIGTERM (kill).");
+                    serv.stop();
+                },
+                None,
+                api_chan,
+            )
+            .map_err(|e| format!("{}: {:?}", msg, e))?;
+        }
+    }
+
+    #[cfg(target_os = "ios")]
+    {
+        // On iOS we do not support the terminal UI. Always run without UI.
+        info!("Starting EPIC w/o UI (iOS build)...");
         let msg = "Failed to start server without UI";
         servers::Server::start(
             config,
