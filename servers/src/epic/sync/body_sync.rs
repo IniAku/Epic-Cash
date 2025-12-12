@@ -358,7 +358,7 @@ impl BodySync {
 
 	fn wait_for_blocks(&mut self) -> Result<(), chain::Error> {
 		let start_time = Utc::now();
-		while Utc::now() < start_time + Duration::seconds(60) {
+		while Utc::now() < start_time + Duration::seconds(20) {
 			let blocks_received = self.blocks_received()?;
 			if blocks_received > 0 {
 				debug!("Block received, proceeding to the next block.");
