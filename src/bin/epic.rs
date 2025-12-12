@@ -35,7 +35,6 @@ use std::env;
 use std::path::Path;
 use std::sync::mpsc;
 mod cmd;
-#[cfg(not(target_os = "ios"))]
 pub mod tui;
 
 pub fn info_strings() -> (String, String) {

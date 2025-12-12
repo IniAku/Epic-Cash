@@ -62,7 +62,6 @@ impl BodySync {
 		_head: &chain::Tip,
 		_highest_height: u64,
 	) -> Result<bool, chain::Error> {
-		self.cleanup_stale_block_requests();
 		self.cleanup_disconnected_peers();
 
 		match self.sync_state.status() {
@@ -83,7 +82,7 @@ impl BodySync {
 	}
 
 	fn body_sync(&mut self) -> Result<bool, chain::Error> {
-		
+		self.cleanup_stale_block_requests();
 		let peers = self.peers.outgoing_connected_peers();
 		if peers.is_empty() {
 			debug!("body_sync: no peers, nothing to do");
@@ -207,17 +206,11 @@ impl BodySync {
 
 	fn cleanup_stale_block_requests(&mut self) {
 		let now = Utc::now();
-		let timeout = Duration::seconds(10);
+		let timeout = Duration::seconds(20);
 		let mut to_remove = vec![];
 		for (peer_addr, hash) in self.requested_peers.iter() {
 			if let Some(ts) = self.hash_request_timestamps.get(hash) {
 				if now.signed_duration_since(*ts) > timeout {
-					// Disconnect the peer before removing
-					if let Err(e) = self.peers.disconnect_peer(peer_addr.clone()) {
-						warn!("Failed to disconnect peer {}: {:?}", peer_addr, e);
-					} else {
-						info!("Disconnected peer {} due to block request timeout", peer_addr);
-					}
 					to_remove.push((peer_addr.clone(), *hash));
 				}
 			}
