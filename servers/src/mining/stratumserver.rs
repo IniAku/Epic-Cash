@@ -644,6 +644,11 @@ impl Handler {
 
 	fn broadcast_job(&self) {
 		debug!("broadcast job");
+		// Do not broadcast jobs while the node is syncing
+		if self.sync_state.is_syncing() {
+			debug!("Not broadcasting job: node is syncing");
+			return;
+		}
 		// Package new block into RpcRequest
 		let job_template = self.build_block_template();
 		let job_template_json = serde_json::to_string(&job_template).unwrap();
@@ -684,17 +689,21 @@ impl Handler {
 			{
 				{
 					debug!("resend updated block");
-					let mut state = self.current_state.write();
-					let mut wallet_listener_url: Option<String> = None;
-					if !config.burn_reward {
-						wallet_listener_url = Some(config.wallet_listener_url.clone());
-					}
-					// If this is a new block, clear the current_block version history
-					// Build the new block (version)
+					// Prepare values we need without holding the write lock
+					let wallet_listener_url: Option<String> = if !config.burn_reward {
+						Some(config.wallet_listener_url.clone())
+					} else {
+						None
+					};
+					let key_id_for_build = {
+						let state_read = self.current_state.read();
+						state_read.current_key_id.clone()
+					};
+					// Build the new block (version) without holding the write lock
 					let (new_block, block_fees, pow_type) = mine_block::get_block(
 						&self.chain,
 						tx_pool,
-						state.current_key_id.clone(),
+						key_id_for_build,
 						wallet_listener_url,
 					);
 
@@ -706,6 +715,8 @@ impl Handler {
 						continue;
 					}
 
+					// Now acquire write lock only to update shared state
+					let mut state = self.current_state.write();
 					state.current_difficulty = (new_block.header.total_difficulty()
 						- head.total_difficulty)
 						.num
@@ -956,13 +967,11 @@ impl WorkersList {
 	}
 
 	pub async fn send_to(&self, worker_id: usize, msg: String) {
-		let _ = self
-			.workers_list
-			.read()
-			.get(&worker_id)
-			.unwrap()
-			.tx
-			.unbounded_send(msg);
+		if let Some(worker) = self.workers_list.read().get(&worker_id) {
+			let _ = worker.tx.unbounded_send(msg);
+		} else {
+			debug!("send_to: worker {} not found (likely disconnected)", worker_id);
+		}
 	}
 
 	pub fn broadcast(&self, msg: String) {

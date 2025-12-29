@@ -260,7 +260,13 @@ impl Peer {
 	/// Send a msg with given msg_type to our peer via the connection.
 	fn send<T: Writeable>(&self, msg: T, msg_type: Type) -> Result<(), Error> {
 		let msg = Msg::new(msg_type, msg, self.info.version)?;
-		self.send_handle.lock().send(msg)
+		match self.send_handle.try_lock() {
+			Some(handle) => handle.send(msg),
+			None => {
+				debug!("send: send_handle locked, dropping msg to avoid blocking");
+				Ok(())
+			}
+		}
 	}
 
 	/// Send a ping to the remote peer, providing our local difficulty and
