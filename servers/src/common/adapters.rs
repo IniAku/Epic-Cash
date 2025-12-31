@@ -66,7 +66,7 @@ where
 	peers: OneTime<Weak<p2p::Peers>>,
 	config: ServerConfig,
 	hooks: Vec<Box<dyn NetEvents + Send + Sync>>,
-	recently_seen_headers: Arc<Mutex<HashMap<Hash, (p2p::PeerAddr, Instant)>>>,
+	recently_seen_headers: Arc<Mutex<HashMap<Hash, HashMap<p2p::PeerAddr, Instant>>>>,
 }
 
 impl<B, P> p2p::ChainAdapter for NetToChainAdapter<B, P>
@@ -204,13 +204,15 @@ where
 			return Ok(true);
 		}
 
-		//strict "header first" propagation
-		let header_peer_addr_opt = {
+		// strict "header first" propagation: only accept compact block from
+		// a peer that previously sent the corresponding header. We store a
+		// per-hash map of peers we've seen that header from and check for
+		// a matching entry for the current peer.
+		let seen_match = {
 			let seen = self.recently_seen_headers.lock().unwrap();
-			seen.get(&cb_hash).copied()
+			seen.get(&cb_hash).and_then(|m| m.get(&peer_info.addr).copied())
 		};
-		let header_peer_addr = header_peer_addr_opt.map(|(addr, _)| addr);
-		if Some(peer_info.addr) != header_peer_addr {
+		if seen_match.is_none() {
 			// Only accept the compact block from the peer that sent the header
 			return Ok(true);
 		}
@@ -325,14 +327,18 @@ where
 		let hash = bh.hash();
 		{
 			let mut seen = self.recently_seen_headers.lock().unwrap();
-			if seen.contains_key(&hash) {
-				// Already seen from some peer, drop early
-				return Ok(true);
+			// If we've already seen this header from this peer, drop early
+			if let Some(m) = seen.get(&hash) {
+				if m.contains_key(&peer_info.addr) {
+					return Ok(true);
+				}
 			}
+			// Avoid unbounded growth
 			if seen.len() > 10000 {
 				seen.clear();
 			}
-			seen.insert(hash, (peer_info.addr, Instant::now()));
+			// Record that this peer sent us this header
+			seen.entry(hash).or_insert_with(HashMap::new).insert(peer_info.addr, Instant::now());
 		}
 
 		if !self.sync_state.is_syncing() {
@@ -627,7 +633,7 @@ where
 			config,
 			hooks,
 			recently_seen_headers: Arc::new(Mutex::new(
-				HashMap::<Hash, (p2p::PeerAddr, Instant)>::with_capacity(10_000),
+				HashMap::<Hash, HashMap<p2p::PeerAddr, Instant>>::with_capacity(10_000),
 			)),
 		}
 	}
@@ -885,9 +891,13 @@ where
 	}
 
 	fn cleanup_recently_seen_headers(&self, timeout: std::time::Duration) {
-		let mut seen = self.recently_seen_headers.lock().unwrap();
-		let now = Instant::now();
-		seen.retain(|_, &mut (_, timestamp)| now.duration_since(timestamp) < timeout);
+			let mut seen = self.recently_seen_headers.lock().unwrap();
+			let now = Instant::now();
+			// For each hash, remove peer entries older than timeout and drop empty maps
+			seen.retain(|_, peer_map| {
+				peer_map.retain(|_, timestamp| now.duration_since(*timestamp) < timeout);
+				!peer_map.is_empty()
+			});
 	}
 }
 
