@@ -79,6 +79,9 @@ jobs:
           override: true
 
       - name: Build release binaries
+        env:
+          CC: clang
+          CXX: clang++
         run: cargo build --release --workspace
 
       - name: Generate checksums
@@ -133,6 +136,9 @@ jobs:
 
       # Build the project
       - name: Build
+        env:
+          CC: clang
+          CXX: clang++
         run: cargo build --workspace --all-targets
 
       # Run cucumber tests

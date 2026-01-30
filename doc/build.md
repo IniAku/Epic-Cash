@@ -67,6 +67,8 @@ git clone https://github.com/EpicCash/epic
 cd epic
 git submodule update --init --recursive
 cargo update
+export CC=clang
+export CXX=clang++
 cargo build --release
 ```
 

@@ -50,10 +50,10 @@ use crate::util;
 use crate::ServerTxPool;
 use epic_core::pow::Proof;
 use epic_core::ser::Writeable;
-use progpow::hardware::PpCPU;
+// use progpow::hardware::PpCPU;
 use epic_core::pow::randomx::rx_current_seed_height;
-use randomx::RandomX;
-use progpow::types::PpCompute;
+// use randomx::RandomXVM;
+// use progpow::types::PpCompute;
 
 type Tx = mpsc::UnboundedSender<String>;
 
@@ -199,12 +199,12 @@ pub struct WorkerStatus {
 	stale: u64,
 }
 
-lazy_static! {
+/*lazy_static! {
 	static ref VERIFICATOR: Mutex<Verificator> = Mutex::new(Verificator::new());
-}
+}*/
 
-struct Verificator {
-	randomx_vm: Option<RandomX>,
+/*struct Verificator {
+	randomx_vm: Option<RandomXVM>,
 	progpow_miner: Option<PpCPU>,
 }
 
@@ -223,7 +223,7 @@ impl Verificator {
 			seed.copy_from_slice(
 				&b.header.pre_pow()[0..32]
 			);
-			self.randomx_vm = Some(RandomX::new(seed, seed_height));
+			self.randomx_vm = Some(RandomXVM::new(seed, seed_height));
 		}
 		self.randomx_vm.as_mut().unwrap().verify(&b.header)
 	}
@@ -232,7 +232,7 @@ impl Verificator {
 		if self.progpow_miner.is_none() {
 			self.progpow_miner = Some(PpCPU::new());
 		}
-		let mix = match b.header.pow.proof {
+		let _mix = match b.header.pow.proof {
 			Proof::ProgPowProof { ref mix } => mix,
 			_ => panic!("Not a progpow proof"),
 		};
@@ -246,7 +246,7 @@ impl Verificator {
 			b.header.pow.nonce,
 		).is_ok()
 	}
-}
+}*/
 
 struct State {
 	current_block_versions: Vec<(Block, PoWType)>,
@@ -648,11 +648,12 @@ impl Handler {
 				);
 		} else {
 			// Do some validation but dont submit
-			let is_valid = match b.header.pow.proof {
+			let is_valid = pow::light_verify_size(&b.header).is_ok();
+			/*let is_valid = match b.header.pow.proof {
 				Proof::RandomXProof { .. } => VERIFICATOR.lock().unwrap().verify_randomx(&b),
 				Proof::ProgPowProof { .. } => VERIFICATOR.lock().unwrap().verify_progpow(&b),
 				_ => pow::light_verify_size(&b.header).is_ok(),
-			};
+			};*/
 
 			if !is_valid {
 				// Return error status
