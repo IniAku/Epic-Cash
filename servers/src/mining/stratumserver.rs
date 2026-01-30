@@ -15,6 +15,8 @@
 //! Mining Stratum Server
 
 use crate::util::RwLock;
+use lazy_static::lazy_static;
+use std::sync::Mutex;
 use chrono::prelude::Utc;
 use futures::channel::mpsc;
 use futures::pin_mut;
@@ -191,6 +193,48 @@ pub struct WorkerStatus {
 	accepted: u64,
 	rejected: u64,
 	stale: u64,
+}
+
+lazy_static! {
+	static ref VERIFICATOR: Mutex<Verificator> = Mutex::new(Verificator::new());
+}
+
+struct Verificator {
+	randomx_vm: Option<randomx::Vm>,
+	progpow_miner: Option<progpow::PpCPU>,
+}
+
+impl Verificator {
+	pub fn new() -> Verificator {
+		Verificator {
+			randomx_vm: None,
+			progpow_miner: None,
+		}
+	}
+
+	pub fn verify_randomx(&mut self, b: &Block) -> bool {
+		if self.randomx_vm.is_none() {
+			let seed_height = randomx::rx_current_seed_height(b.header.height);
+			let mut seed = [0u8; 32];
+			seed.copy_from_slice(
+				&b.header.pre_pow_keccak[0..32]
+			);
+			self.randomx_vm = randomx::Vm::new(seed, seed_height);
+		}
+		self.randomx_vm.as_mut().unwrap().verify(&b.header)
+	}
+
+	pub fn verify_progpow(&mut self, b: &Block) -> bool {
+		if self.progpow_miner.is_none() {
+			self.progpow_miner = Some(progpow::PpCPU::new(b.header.height, &b.header.pre_pow_keccak));
+		}
+		self.progpow_miner.as_mut().unwrap().verify(
+			&b.header.pow.proof.as_ref(),
+			b.header.height,
+			&b.header.pre_pow_keccak,
+			b.header.pow.nonce,
+		)
+	}
 }
 
 struct State {
@@ -593,17 +637,21 @@ impl Handler {
 				);
 		} else {
 			// Do some validation but dont submit
-			let res = pow::verify_size(&b.header);
-			if !res.is_ok() {
+			let is_valid = match b.header.pow.proof {
+				Proof::RandomXProof { .. } => VERIFICATOR.lock().unwrap().verify_randomx(&b),
+				Proof::ProgPowProof { .. } => VERIFICATOR.lock().unwrap().verify_progpow(&b),
+				_ => pow::light_verify_size(&b.header).is_ok(),
+			};
+
+			if !is_valid {
 				// Return error status
 				error!(
-						"(Server ID: {}) Failed to validate share at height {}, hash {}, nonce {}, job_id {}. {:?}",
+						"(Server ID: {}) Failed to validate share at height {}, hash {}, nonce {}, job_id {}.",
 						self.id,
 						params.height,
 						b.hash(),
 						b.header.pow.nonce,
 						params.job_id,
-						res,
 					);
 				self.workers
 					.update_stats(worker_id, |worker_stats| worker_stats.num_rejected += 1);

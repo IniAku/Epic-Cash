@@ -49,3 +49,6 @@ epic_p2p = { path = "../p2p", version = "4.0.0" }
 epic_pool = { path = "../pool", version = "4.0.0" }
 epic_store = { path = "../store", version = "4.0.0" }
 epic_util = { path = "../util", version = "4.0.0" }
+lazy_static = "1.4.0"
+randomx = { git = "https://github.com/EpicCash/randomx-rust.git", tag = "v0.2.0" }
+progpow = { git = "https://github.com/EpicCash/progpow-rust", tag = "v0.2.0" }

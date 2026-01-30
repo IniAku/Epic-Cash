@@ -84,6 +84,17 @@ pub fn verify_size(bh: &BlockHeader) -> Result<(), Error> {
 	ctx.verify(&bh.pow.proof)
 }
 
+/// "Light" validates the proof of work of a given header, and that the proof of work
+/// satisfies the requirements of the header.
+pub fn light_verify_size(bh: &BlockHeader) -> Result<(), Error> {
+	if let Proof::CuckooProof { edge_bits, .. } = bh.pow.proof {
+		if edge_bits < global::min_edge_bits() {
+			return Err(Error::Verification("invalid edge_bits".to_owned()));
+		}
+	}
+	Ok(())
+}
+
 /// Mines a genesis block using the internal miner
 pub fn mine_genesis_block() -> Result<Block, Error> {
 	let mut gen = genesis::genesis_dev();
