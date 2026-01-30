@@ -52,7 +52,8 @@ use epic_core::pow::Proof;
 use epic_core::ser::Writeable;
 use progpow::hardware::PpCPU;
 use epic_core::pow::randomx::rx_current_seed_height;
-use randomx::RandomxVm;
+use randomx::RandomXVM;
+use progpow::types::PpCompute;
 
 type Tx = mpsc::UnboundedSender<String>;
 
@@ -203,7 +204,7 @@ lazy_static! {
 }
 
 struct Verificator {
-	randomx_vm: Option<RandomxVm>,
+	randomx_vm: Option<RandomXVM>,
 	progpow_miner: Option<PpCPU>,
 }
 
@@ -222,20 +223,24 @@ impl Verificator {
 			seed.copy_from_slice(
 				&b.header.pre_pow()[0..32]
 			);
-			self.randomx_vm = Some(RandomxVm::new(seed, seed_height));
+			self.randomx_vm = Some(RandomXVM::new(seed, seed_height));
 		}
 		self.randomx_vm.as_mut().unwrap().verify(&b.header)
 	}
 
 	pub fn verify_progpow(&mut self, b: &Block) -> bool {
 		if self.progpow_miner.is_none() {
-			self.progpow_miner = Some(PpCPU::new(b.header.height, &b.header.pre_pow()));
+			self.progpow_miner = Some(PpCPU::new());
 		}
+		let mix = match b.header.pow.proof {
+			Proof::ProgPowProof { ref mix } => mix,
+			_ => panic!("Not a progpow proof"),
+		};
 		self.progpow_miner.as_mut().unwrap().verify(
-			&b.header.pow.proof.to_vec(),
-			b.header.height,
 			&b.header.pre_pow(),
+			b.header.height,
 			b.header.pow.nonce,
+			mix,
 		)
 	}
 }
