@@ -204,7 +204,7 @@ lazy_static! {
 }
 
 struct Verificator {
-	randomx_vm: Option<RandomXVM>,
+	randomx_vm: Option<randomx::RandomXVM>,
 	progpow_miner: Option<PpCPU>,
 }
 
@@ -223,7 +223,7 @@ impl Verificator {
 			seed.copy_from_slice(
 				&b.header.pre_pow()[0..32]
 			);
-			self.randomx_vm = Some(RandomXVM::new(seed, seed_height));
+			self.randomx_vm = Some(randomx::RandomXVM::new(seed, seed_height));
 		}
 		self.randomx_vm.as_mut().unwrap().verify(&b.header)
 	}
